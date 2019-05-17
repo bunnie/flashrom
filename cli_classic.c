@@ -29,6 +29,9 @@
 #include "programmer.h"
 #include "libflashrom.h"
 
+#include <sys/mman.h>
+#include <unistd.h>
+
 static void cli_classic_usage(const char *name)
 {
 	printf("Please note that the command line interface for flashrom has changed between\n"
@@ -92,6 +95,13 @@ static int check_filename(char *filename, char *type)
 	return 0;
 }
 
+uint32_t bcm2835_peri_base = 0x20000000;
+#define BCM2835_GPIO_BASE	(bcm2835_peri_base + 0x200000) /* GPIO controller */
+
+#define BCM2835_PADS_GPIO_0_27		(bcm2835_peri_base + 0x100000)
+#define BCM2835_PADS_GPIO_0_27_OFFSET	(0x2c / 4)
+static int dev_mem_fd;
+
 int main(int argc, char *argv[])
 {
 	const struct flashchip *chip = NULL;
@@ -151,6 +161,27 @@ int main(int argc, char *argv[])
 #endif /* !STANDALONE */
 	char *tempstr = NULL;
 	char *pparam = NULL;
+
+	static volatile uint32_t *pads_base;
+
+	dev_mem_fd = open("/dev/mem", O_RDWR | O_SYNC);
+	if (dev_mem_fd < 0) {
+		perror("open");
+		exit(1);
+	}
+
+	pads_base = mmap(NULL, sysconf(_SC_PAGE_SIZE), PROT_READ | PROT_WRITE,
+				MAP_SHARED, dev_mem_fd, BCM2835_PADS_GPIO_0_27);
+
+	if (pads_base == MAP_FAILED) {
+		perror("mmap");
+		close(dev_mem_fd);
+		exit(1);
+	}
+
+	/* set 16mA drive strength, slew rate limited, hysteresis on */
+	pads_base[BCM2835_PADS_GPIO_0_27_OFFSET] = 0x5a000008 + 7;
+	printf("pads set to high drive\n");
 
 	flashrom_set_log_callback((flashrom_log_callback *)&flashrom_print_cb);
 

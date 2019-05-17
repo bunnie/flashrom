@@ -1,0 +1,2 @@
+sudo ./flashrom -c "MX25V8035F" -p linux_spi:dev=/dev/spidev0.0,spispeed=8000 -r read1.rom
+sudo ./flashrom -V -c "MX25L25635F" -p linux_spi:dev=/dev/spidev0.0,spispeed=8000 -r read2.rom
